@@ -1,15 +1,18 @@
+# import statements. last two lines are new
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from src.api import auth
 import sqlalchemy
 from src import database as db
 
+# sets up router for barrel endpoints (nothing changed)
 router = APIRouter(
     prefix="/barrels",
     tags=["barrels"],
     dependencies=[Depends(auth.get_api_key)],
 )
 
+# defines the Barrel class with the specified attributes (nothing changed)
 class Barrel(BaseModel):
     sku: str
 
@@ -19,6 +22,7 @@ class Barrel(BaseModel):
 
     quantity: int
 
+# this endpoint hasn't changed
 @router.post("/deliver/{order_id}")
 def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
     """ """
@@ -27,8 +31,13 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
     return "OK"
 
 # Gets called once a day
+# 
 @router.post("/plan")
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
+    
+    """ """
+    print(wholesale_catalog)
+    
     with db.engine.begin() as connection:
         result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")).fetchone()
         num_green_potions, gold = result
