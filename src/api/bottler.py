@@ -25,22 +25,26 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
 
 @router.post("/plan")
 def get_bottle_plan():
-    """
-    Go from barrel to bottle.
-    """
+    with db.engine.begin() as connection:
+        # Get current inventory
+        result = connection.execute(sqlalchemy.text(
+            "SELECT num_green_ml FROM global_inventory"
+        )).fetchone()
+        
+        current_green_ml = result[0]
 
-    # Each bottle has a quantity of what proportion of red, blue, and
-    # green potion to add.
-    # Expressed in integers from 1 to 100 that must sum up to 100.
+        # Basic logic: bottle all available green ml into potions
+        potions_to_make = current_green_ml // 100  # Each potion requires 100 ml
 
-    # Initial logic: bottle all barrels into red potions.
+        if potions_to_make > 0:
+            # Update inventory
+            connection.execute(sqlalchemy.text(
+                "UPDATE global_inventory SET num_green_ml = num_green_ml - :used_ml, num_green_potions = num_green_potions + :new_potions"
+            ), {"used_ml": potions_to_make * 100, "new_potions": potions_to_make})
 
-    return [
-            {
-                "potion_type": [100, 0, 0, 0],
-                "quantity": 5,
-            }
-        ]
+            return [{"potion_type": [0, 100, 0, 0], "quantity": potions_to_make}]
+
+    return []  # Don't make any potions if not enough ml
 
 if __name__ == "__main__":
     print(get_bottle_plan())

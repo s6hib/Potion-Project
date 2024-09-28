@@ -30,13 +30,23 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
 # Gets called once a day
 @router.post("/plan")
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
-    """ """
-    print(wholesale_catalog)
+    with db.engine.begin() as connection:
+        # Get current inventory
+        result = connection.execute(sqlalchemy.text(
+            "SELECT num_green_ml, gold FROM global_inventory"
+        )).fetchone()
+        
+        current_green_ml, current_gold = result
 
-    return [
-        {
-            "sku": "SMALL_RED_BARREL",
-            "quantity": 1,
-        }
-    ]
+        # Basic logic: buy a small green barrel if we have less than 1000 ml and enough gold
+        for barrel in wholesale_catalog:
+            if barrel.sku == "SMALL_GREEN_BARREL" and current_green_ml < 1000 and current_gold >= barrel.price:
+                # Update inventory
+                connection.execute(sqlalchemy.text(
+                    "UPDATE global_inventory SET num_green_ml = num_green_ml + :ml, gold = gold - :price"
+                ), {"ml": barrel.ml_per_barrel, "price": barrel.price})
+                
+                return [{"sku": "SMALL_GREEN_BARREL", "quantity": 1}]
+
+    return []  # Don't buy anything if conditions aren't met
 
