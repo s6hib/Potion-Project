@@ -107,11 +107,13 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("SELECT num_green_potions FROM global_inventory")).fetchone()
-        num_green_potions = result[0]
+        result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")).fetchone()
+        num_green_potions, current_gold = result
 
         if num_green_potions > 0:
-            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = num_green_potions - 1, gold = gold + 50"))
+            new_gold = current_gold + 50
+            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = num_green_potions - 1, gold = :new_gold"),
+                               {"new_gold": new_gold})
             return {"total_potions_bought": 1, "total_gold_paid": 50}
         else:
             return {"total_potions_bought": 0, "total_gold_paid": 0}

@@ -34,10 +34,6 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
 # 
 @router.post("/plan")
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
-    
-    """ """
-    print(wholesale_catalog)
-    
     with db.engine.begin() as connection:
         result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")).fetchone()
         num_green_potions, gold = result
@@ -45,8 +41,9 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         if num_green_potions < 10:
             for barrel in wholesale_catalog:
                 if barrel.sku == "SMALL_GREEN_BARREL" and gold >= barrel.price:
-                    connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = num_green_ml + :ml, gold = gold - :price"),
-                                       {"ml": barrel.ml_per_barrel, "price": barrel.price})
+                    new_gold = gold - barrel.price
+                    connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = num_green_ml + :ml, gold = :new_gold"),
+                                       {"ml": barrel.ml_per_barrel, "new_gold": new_gold})
                     return [{"sku": "SMALL_GREEN_BARREL", "quantity": 1}]
 
     return []
