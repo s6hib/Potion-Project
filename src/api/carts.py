@@ -29,31 +29,7 @@ def search_orders(
     sort_col: search_sort_options = search_sort_options.timestamp,
     sort_order: search_sort_order = search_sort_order.desc,
 ):
-    """
-    Search for cart line items by customer name and/or potion sku.
-
-    Customer name and potion sku filter to orders that contain the 
-    string (case insensitive). If the filters aren't provided, no
-    filtering occurs on the respective search term.
-
-    Search page is a cursor for pagination. The response to this
-    search endpoint will return previous or next if there is a
-    previous or next page of results available. The token passed
-    in that search response can be passed in the next search request
-    as search page to get that page of results.
-
-    Sort col is which column to sort by and sort order is the direction
-    of the search. They default to searching by timestamp of the order
-    in descending order.
-
-    The response itself contains a previous and next page token (if
-    such pages exist) and the results as an array of line items. Each
-    line item contains the line item id (must be unique), item sku, 
-    customer name, line item total (in gold), and timestamp of the order.
-    Your results must be paginated, the max results you can return at any
-    time is 5 total line items.
-    """
-
+    # This endpoint doesn't need to be changed for Version 1
     return {
         "previous": "",
         "next": "",
@@ -68,7 +44,6 @@ def search_orders(
         ],
     }
 
-
 class Customer(BaseModel):
     customer_name: str
     character_class: str
@@ -76,44 +51,37 @@ class Customer(BaseModel):
 
 @router.post("/visits/{visit_id}")
 def post_visits(visit_id: int, customers: list[Customer]):
-    """
-    Which customers visited the shop today?
-    """
-    print(customers)
-
     return "OK"
-
 
 @router.post("/")
 def create_cart(new_cart: Customer):
-    """ """
     return {"cart_id": 1}
-
 
 class CartItem(BaseModel):
     quantity: int
 
-
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
-    """ """
-
     return "OK"
 
-#
 class CartCheckout(BaseModel):
     payment: str
 
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")).fetchone()
-        num_green_potions, current_gold = result
-
-        if num_green_potions > 0:
-            new_gold = current_gold + 50
-            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = num_green_potions - 1, gold = :new_gold"),
-                               {"new_gold": new_gold})
-            return {"total_potions_bought": 1, "total_gold_paid": 50}
-        else:
-            return {"total_potions_bought": 0, "total_gold_paid": 0}
+        # get current inventory
+        result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory"))
+        inventory = result.fetchone()
+    
+    # sell one green potion if available
+    if inventory.num_green_potions >= 1:
+        with db.engine.begin() as connection:
+            # update inventory and gold
+            connection.execute(
+                sqlalchemy.text(
+                    "UPDATE global_inventory SET num_green_potions = num_green_potions - 1, gold = gold + 50"
+                )
+            )
+        return {"total_potions_bought": 1, "total_gold_paid": 50}
+    return {"total_potions_bought": 0, "total_gold_paid": 0}
