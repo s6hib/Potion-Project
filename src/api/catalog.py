@@ -11,13 +11,16 @@ def get_catalog():
         result = connection.execute(sqlalchemy.text("SELECT num_green_potions FROM global_inventory"))
         num_green_potions = result.fetchone().num_green_potions
 
-    # return catalog with available green potions
-    return [
-        {
-            "sku": "GREEN_POTION_0",
-            "name": "green potion",
-            "quantity": num_green_potions,
-            "price": 50,
-            "potion_type": [0, 100, 0, 0],
-        }
-    ]
+    # return catalog with available green potions, or an empty array if none are available
+    if num_green_potions > 0:
+        return [
+            {
+                "sku": "GREEN_POTION_0",
+                "name": "green potion",
+                "quantity": num_green_potions,
+                "price": 50,
+                "potion_type": [0, 100, 0, 0],
+            }
+        ]
+    else:
+        return []
