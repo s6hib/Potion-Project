@@ -17,38 +17,37 @@ class PotionInventory(BaseModel):
 
 @router.post("/deliver/{order_id}")
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
-    for potion in potions_delivered:
-        if potion.potion_type == [0, 100, 0, 0]:  # Green potion
-            with db.engine.begin() as connection:
-                # update green potion inventory
-                connection.execute(
-                    sqlalchemy.text(
-                        "UPDATE global_inventory SET num_green_potions = num_green_potions + :quantity"
-                    ),
-                    {"quantity": potion.quantity}
-                )
-    return "OK"
+    """handle potion delivery"""
+    total_bottles = sum(potion.quantity for potion in potions_delivered)  # sum quantities
+    total_green_ml = sum(potion.potion_type[1] * potion.quantity for potion in potions_delivered)  # sum green ml
+    
+    with db.engine.begin() as conn:
+        conn.execute(
+            sqlalchemy.text(
+                f"update global_inventory \
+                set num_green_potions = num_green_potions + {total_bottles}, \
+                num_green_ml = num_green_ml - {total_green_ml}"
+            )
+        )
+    print(f"potions delivered: {potions_delivered} order_id: {order_id}")
+    return "ok"
 
 @router.post("/plan")
 def get_bottle_plan():
-    with db.engine.begin() as connection:
-        # get current green ml
-        result = connection.execute(sqlalchemy.text("SELECT num_green_ml FROM global_inventory"))
-        green_ml = result.fetchone().num_green_ml
+    """plan potion bottling"""
+    # each bottle needs 100 ml of potion
+    with db.engine.begin() as conn:
+        res = conn.execute(
+            sqlalchemy.text("select num_green_ml from global_inventory")
+        )
+        green_ml = res.first().num_green_ml  # fetch green ml
     
-    # calculate how many potions can be made, ensuring at least 100 ml is available
-    potions_to_make = green_ml // 100
-    if potions_to_make > 0:
-        ml_to_use = potions_to_make * 100
-        with db.engine.begin() as connection:
-            # deduct used green ml
-            connection.execute(
-                sqlalchemy.text(
-                    "UPDATE global_inventory SET num_green_ml = num_green_ml - :used_ml"
-                ),
-                {"used_ml": ml_to_use}
-            )
-        return [{"potion_type": [0, 100, 0, 0], "quantity": potions_to_make}]
+    mixable_potions = green_ml // 100  # calculate mixable potions
+    if mixable_potions > 0:
+        return [{
+            "potion_type": [0, 100, 0, 0],  # potion details
+            "quantity": mixable_potions,  # mixable potion count
+        }]
     return []
 
 if __name__ == "__main__":

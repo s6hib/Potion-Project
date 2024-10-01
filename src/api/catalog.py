@@ -6,21 +6,20 @@ router = APIRouter()
 
 @router.get("/catalog/", tags=["catalog"])
 def get_catalog():
-    with db.engine.begin() as connection:
-        # get current green potion inventory
-        result = connection.execute(sqlalchemy.text("SELECT num_green_potions FROM global_inventory"))
-        num_green_potions = result.fetchone().num_green_potions
-
-    # return catalog with available green potions, or an empty array if none are available
-    if num_green_potions > 0:
-        return [
-            {
-                "sku": "GREEN_POTION_0",
-                "name": "green potion",
-                "quantity": num_green_potions,
-                "price": 50,
-                "potion_type": [0, 100, 0, 0],
-            }
-        ]
-    else:
-        return []
+    """Each unique item combo must have only one price"""
+    with db.engine.begin() as conn:
+        res = conn.execute(
+            sqlalchemy.text("SELECT num_green_potions FROM global_inventory")
+        )
+        green_stock = res.first().num_green_potions
+    
+    # return green potions if available
+    if green_stock > 0:
+        return [{
+            "sku": "GREEN_POTION_0",
+            "name": "green potion",
+            "quantity": green_stock,
+            "price": 50,
+            "potion_type": [0, 100, 0, 0],
+        }]
+    return []

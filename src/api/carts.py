@@ -5,19 +5,22 @@ from enum import Enum
 import sqlalchemy
 from src import database as db
 
+# simple in memory cart storage
+cart_storage = {}
+
 router = APIRouter(
     prefix="/carts",
     tags=["cart"],
     dependencies=[Depends(auth.get_api_key)],
 )
 
-class search_sort_options(str, Enum):
+class SearchSortOptions(str, Enum):
     customer_name = "customer_name"
     item_sku = "item_sku"
     line_item_total = "line_item_total"
     timestamp = "timestamp"
 
-class search_sort_order(str, Enum):
+class SearchSortOrder(str, Enum):
     asc = "asc"
     desc = "desc"   
 
@@ -26,10 +29,11 @@ def search_orders(
     customer_name: str = "",
     potion_sku: str = "",
     search_page: str = "",
-    sort_col: search_sort_options = search_sort_options.timestamp,
-    sort_order: search_sort_order = search_sort_order.desc,
+    sort_col: SearchSortOptions = SearchSortOptions.timestamp,
+    sort_order: SearchSortOrder = SearchSortOrder.desc,
 ):
-    # This endpoint doesn't need to be changed for Version 1
+    """search for cart line items by customer name and/or potion sku"""
+    # placeholder implementation
     return {
         "previous": "",
         "next": "",
@@ -51,17 +55,24 @@ class Customer(BaseModel):
 
 @router.post("/visits/{visit_id}")
 def post_visits(visit_id: int, customers: list[Customer]):
+    """log customer visits"""
+    print(customers)
     return "OK"
 
 @router.post("/")
 def create_cart(new_cart: Customer):
-    return {"cart_id": 1}
+    """create a new cart"""
+    cart_id = len(cart_storage) + 1
+    cart_storage[cart_id] = {"customer": new_cart, "items": {}}
+    return {"cart_id": cart_id}
 
 class CartItem(BaseModel):
     quantity: int
 
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
+    """set item quantity in cart"""
+    cart_storage[cart_id]["items"][item_sku] = cart_item
     return "OK"
 
 class CartCheckout(BaseModel):
@@ -69,19 +80,15 @@ class CartCheckout(BaseModel):
 
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
-    with db.engine.begin() as connection:
-        # get current inventory
-        result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory"))
-        inventory = result.fetchone()
-    
-    # sell one green potion if available
-    if inventory.num_green_potions >= 1:
-        with db.engine.begin() as connection:
-            # update inventory and gold
-            connection.execute(
-                sqlalchemy.text(
-                    "UPDATE global_inventory SET num_green_potions = num_green_potions - 1, gold = gold + 50"
-                )
+    """process cart checkout"""
+    total_bottles = sum(cart_storage[cart_id]["items"][item].quantity for item in cart_storage[cart_id]["items"])
+    total_price = total_bottles * 50
+    with db.engine.begin() as conn:
+        conn.execute(
+            sqlalchemy.text(
+                f"UPDATE global_inventory \
+                SET num_green_potions = num_green_potions - {total_bottles}, \
+                gold = gold + {total_price}"
             )
-        return {"total_potions_bought": 1, "total_gold_paid": 50}
-    return {"total_potions_bought": 0, "total_gold_paid": 0}
+        )
+    return {"total_potions_bought": total_bottles, "total_gold_paid": total_price}
