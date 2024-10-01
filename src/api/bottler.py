@@ -36,16 +36,17 @@ def get_bottle_plan():
         result = connection.execute(sqlalchemy.text("SELECT num_green_ml FROM global_inventory"))
         green_ml = result.fetchone().num_green_ml
     
-    # calculate how many potions can be made
+    # calculate how many potions can be made, ensuring at least 100 ml is available
     potions_to_make = green_ml // 100
     if potions_to_make > 0:
+        ml_to_use = potions_to_make * 100
         with db.engine.begin() as connection:
             # deduct used green ml
             connection.execute(
                 sqlalchemy.text(
                     "UPDATE global_inventory SET num_green_ml = num_green_ml - :used_ml"
                 ),
-                {"used_ml": potions_to_make * 100}
+                {"used_ml": ml_to_use}
             )
         return [{"potion_type": [0, 100, 0, 0], "quantity": potions_to_make}]
     return []

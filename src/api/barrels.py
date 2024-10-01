@@ -35,10 +35,10 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     with db.engine.begin() as connection:
         # get current inventory
-        result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory"))
+        result = connection.execute(sqlalchemy.text("SELECT num_green_potions, num_green_ml, gold FROM global_inventory"))
         inventory = result.fetchone()
     
     # buy a small green barrel if inventory is low and we have enough gold
-    if inventory.num_green_potions < 10 and inventory.gold >= 50:
+    if (inventory.num_green_potions < 10 or inventory.num_green_ml < 1000) and inventory.gold >= 50:
         return [{"sku": "SMALL_GREEN_BARREL", "quantity": 1}]
     return []
