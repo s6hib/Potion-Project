@@ -81,14 +81,40 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """process cart checkout"""
-    total_bottles = sum(cart_storage[cart_id]["items"][item].quantity for item in cart_storage[cart_id]["items"])
-    total_price = total_bottles * 50
+    cart = cart_storage[cart_id]
+    total_red_potions = 0
+    total_green_potions = 0
+    total_blue_potions = 0
+    total_price = 0
+
+    for item_sku, cart_item in cart["items"].items():
+        if item_sku.startswith("RED"):
+            total_red_potions += cart_item.quantity
+        elif item_sku.startswith("GREEN"):
+            total_green_potions += cart_item.quantity
+        elif item_sku.startswith("BLUE"):
+            total_blue_potions += cart_item.quantity
+        
+        total_price += cart_item.quantity * 50  # Assuming all potions cost 50 gold
+
     with db.engine.begin() as conn:
         conn.execute(
             sqlalchemy.text(
-                f"UPDATE global_inventory \
-                SET num_green_potions = num_green_potions - {total_bottles}, \
-                gold = gold + {total_price}"
-            )
+                f"""
+                UPDATE global_inventory 
+                SET num_red_potions = num_red_potions - :red_potions,
+                    num_green_potions = num_green_potions - :green_potions,
+                    num_blue_potions = num_blue_potions - :blue_potions,
+                    gold = gold + :total_price
+                """
+            ),
+            {
+                "red_potions": total_red_potions,
+                "green_potions": total_green_potions,
+                "blue_potions": total_blue_potions,
+                "total_price": total_price
+            }
         )
-    return {"total_potions_bought": total_bottles, "total_gold_paid": total_price}
+
+    total_potions = total_red_potions + total_green_potions + total_blue_potions
+    return {"total_potions_bought": total_potions, "total_gold_paid": total_price}

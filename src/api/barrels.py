@@ -21,20 +21,39 @@ class Barrel(BaseModel):
 @router.post("/deliver/{order_id}")
 def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
     """handle barrel delivery"""
-    # calculate total ml and cost for the delivered barrels
-    total_ml = sum(b.ml_per_barrel * b.quantity for b in barrels_delivered)
-    total_cost = sum(b.price * b.quantity for b in barrels_delivered)
+    total_red_ml = 0
+    total_green_ml = 0
+    total_blue_ml = 0
+    total_cost = 0
 
-    # update inventory in the database
+    for barrel in barrels_delivered:
+        if barrel.sku.startswith("RED"):
+            total_red_ml += barrel.ml_per_barrel * barrel.quantity
+        elif barrel.sku.startswith("GREEN"):
+            total_green_ml += barrel.ml_per_barrel * barrel.quantity
+        elif barrel.sku.startswith("BLUE"):
+            total_blue_ml += barrel.ml_per_barrel * barrel.quantity
+        total_cost += barrel.price * barrel.quantity
+
     with db.engine.begin() as conn:
         conn.execute(
             sqlalchemy.text(
-                f"UPDATE global_inventory \
-                SET num_green_ml = num_green_ml + {total_ml}, \
-                gold = gold - {total_cost}"
-            )
+                """
+                UPDATE global_inventory 
+                SET num_red_ml = num_red_ml + :red_ml,
+                    num_green_ml = num_green_ml + :green_ml,
+                    num_blue_ml = num_blue_ml + :blue_ml,
+                    gold = gold - :total_cost
+                """
+            ),
+            {
+                "red_ml": total_red_ml,
+                "green_ml": total_green_ml,
+                "blue_ml": total_blue_ml,
+                "total_cost": total_cost
+            }
         )
-    # log the delivery details
+
     print(f"barrels delivered: {barrels_delivered} order_id: {order_id}")
     return "OK"
 
@@ -42,18 +61,26 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
 @router.post("/plan")
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     """plan barrel purchases"""
-    print(wholesale_catalog)
-    # find green barrel in the catalog
-    green_barrel = next((b for b in wholesale_catalog if b.sku == "SMALL_GREEN_BARREL"), None)
-    if green_barrel:
-        # retrieve current inventory data
-        with db.engine.begin() as conn:
-            res = conn.execute(
-                sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")
-            )
-            inv_data = res.first()
-        # if conditions are met, plan to buy one green barrel
-        if inv_data.num_green_potions < 10 and inv_data.gold >= green_barrel.price:
-            return [{"sku": "SMALL_GREEN_BARREL", "quantity": 1}]
-    # return empty if no purchase is needed
-    return []
+    purchase_plan = []
+    
+    with db.engine.begin() as conn:
+        res = conn.execute(
+            sqlalchemy.text("""
+                SELECT num_red_potions, num_green_potions, num_blue_potions, gold 
+                FROM global_inventory
+            """)
+        )
+        inv_data = res.first()
+
+    for barrel in wholesale_catalog:
+        if barrel.sku.startswith("RED") and inv_data.num_red_potions < 10 and inv_data.gold >= barrel.price:
+            purchase_plan.append({"sku": barrel.sku, "quantity": 1})
+            inv_data.gold -= barrel.price
+        elif barrel.sku.startswith("GREEN") and inv_data.num_green_potions < 10 and inv_data.gold >= barrel.price:
+            purchase_plan.append({"sku": barrel.sku, "quantity": 1})
+            inv_data.gold -= barrel.price
+        elif barrel.sku.startswith("BLUE") and inv_data.num_blue_potions < 10 and inv_data.gold >= barrel.price:
+            purchase_plan.append({"sku": barrel.sku, "quantity": 1})
+            inv_data.gold -= barrel.price
+
+    return purchase_plan
