@@ -27,11 +27,11 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
     total_cost = 0
 
     for barrel in barrels_delivered:
-        if barrel.sku.startswith("RED"):
+        if "RED" in barrel.sku.upper():
             total_red_ml += barrel.ml_per_barrel * barrel.quantity
-        elif barrel.sku.startswith("GREEN"):
+        elif "GREEN" in barrel.sku.upper():
             total_green_ml += barrel.ml_per_barrel * barrel.quantity
-        elif barrel.sku.startswith("BLUE"):
+        elif "BLUE" in barrel.sku.upper():
             total_blue_ml += barrel.ml_per_barrel * barrel.quantity
         total_cost += barrel.price * barrel.quantity
 
@@ -73,13 +73,13 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         inv_data = res.first()
 
     for barrel in wholesale_catalog:
-        if barrel.sku.startswith("RED") and inv_data.num_red_potions < 10 and inv_data.gold >= barrel.price:
+        if "RED" in barrel.sku.upper() and inv_data.num_red_potions < 10 and inv_data.gold >= barrel.price:
             purchase_plan.append({"sku": barrel.sku, "quantity": 1})
             inv_data.gold -= barrel.price
-        elif barrel.sku.startswith("GREEN") and inv_data.num_green_potions < 10 and inv_data.gold >= barrel.price:
+        elif "GREEN" in barrel.sku.upper() and inv_data.num_green_potions < 10 and inv_data.gold >= barrel.price:
             purchase_plan.append({"sku": barrel.sku, "quantity": 1})
             inv_data.gold -= barrel.price
-        elif barrel.sku.startswith("BLUE") and inv_data.num_blue_potions < 10 and inv_data.gold >= barrel.price:
+        elif "BLUE" in barrel.sku.upper() and inv_data.num_blue_potions < 10 and inv_data.gold >= barrel.price:
             purchase_plan.append({"sku": barrel.sku, "quantity": 1})
             inv_data.gold -= barrel.price
 

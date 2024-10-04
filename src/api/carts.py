@@ -88,13 +88,13 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     total_price = 0
 
     for item_sku, cart_item in cart["items"].items():
-        if item_sku.startswith("RED"):
+        if "RED" in item_sku.upper():
             total_red_potions += cart_item.quantity
-        elif item_sku.startswith("GREEN"):
+        elif "GREEN" in item_sku.upper():
             total_green_potions += cart_item.quantity
-        elif item_sku.startswith("BLUE"):
+        elif "BLUE" in item_sku.upper():
             total_blue_potions += cart_item.quantity
-        
+    
         total_price += cart_item.quantity * 50  # Assuming all potions cost 50 gold
 
     with db.engine.begin() as conn:
