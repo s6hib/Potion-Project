@@ -5,7 +5,7 @@ from enum import Enum
 import sqlalchemy
 from src import database as db
 
-# simple in memory cart storage
+# simple in-memory cart storage
 cart_storage = {}
 
 router = APIRouter(
@@ -81,40 +81,42 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """process cart checkout"""
-    cart = cart_storage[cart_id]
-    total_red_potions = 0
-    total_green_potions = 0
-    total_blue_potions = 0
+    # Initialize totals
+    total_bottles_green = 0
+    total_bottles_red = 0
+    total_bottles_blue = 0
     total_price = 0
 
-    for item_sku, cart_item in cart["items"].items():
-        if "RED" in item_sku.upper():
-            total_red_potions += cart_item.quantity
-        elif "GREEN" in item_sku.upper():
-            total_green_potions += cart_item.quantity
-        elif "BLUE" in item_sku.upper():
-            total_blue_potions += cart_item.quantity
-    
-        total_price += cart_item.quantity * 50  # Assuming all potions cost 50 gold
+    # prices per potion type
+    price_per_bottle = 50
+
+    # process items in the cart
+    for item_sku, cart_item in cart_storage[cart_id]["items"].items():
+        quantity = cart_item.quantity
+        if item_sku == "GREEN_POTION_0":
+            total_bottles_green += quantity
+        elif item_sku == "RED_POTION_0":
+            total_bottles_red += quantity
+        elif item_sku == "BLUE_POTION_0":
+            total_bottles_blue += quantity
+        else:
+            # handle unknown items if necessary
+            pass
+
+        total_price += quantity * price_per_bottle
 
     with db.engine.begin() as conn:
         conn.execute(
             sqlalchemy.text(
                 f"""
-                UPDATE global_inventory 
-                SET num_red_potions = num_red_potions - :red_potions,
-                    num_green_potions = num_green_potions - :green_potions,
-                    num_blue_potions = num_blue_potions - :blue_potions,
-                    gold = gold + :total_price
+                UPDATE global_inventory
+                SET
+                    num_green_potions = num_green_potions - {total_bottles_green},
+                    num_red_potions = num_red_potions - {total_bottles_red},
+                    num_blue_potions = num_blue_potions - {total_bottles_blue},
+                    gold = gold + {total_price}
                 """
-            ),
-            {
-                "red_potions": total_red_potions,
-                "green_potions": total_green_potions,
-                "blue_potions": total_blue_potions,
-                "total_price": total_price
-            }
+            )
         )
-
-    total_potions = total_red_potions + total_green_potions + total_blue_potions
-    return {"total_potions_bought": total_potions, "total_gold_paid": total_price}
+    total_potions_bought = total_bottles_green + total_bottles_red + total_bottles_blue
+    return {"total_potions_bought": total_potions_bought, "total_gold_paid": total_price}
