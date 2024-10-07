@@ -32,8 +32,8 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
         potion_type = potion.potion_type
         # calculate ml used for each potion type
         green_ml = potion_type[1] * quantity
-        red_ml = potion_type[2] * quantity
-        blue_ml = potion_type[3] * quantity
+        red_ml = potion_type[0] * quantity
+        blue_ml = potion_type[2] * quantity
         # update total ml used
         total_green_ml += green_ml
         total_red_ml += red_ml
@@ -41,9 +41,9 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
         # update total bottles per potion type
         if potion_type[1] > 0:
             total_green_bottles += quantity
-        if potion_type[2] > 0:
+        if potion_type[0] > 0:
             total_red_bottles += quantity
-        if potion_type[3] > 0:
+        if potion_type[2] > 0:
             total_blue_bottles += quantity
 
     # update inventory in the database
@@ -86,6 +86,8 @@ def get_bottle_plan():
     bottle_plan = []
 
     # plan bottling for green potions
+    # [r, g, b, dark]
+    # before it was green ok, red [0010], blue [0001]
     if mixable_green_potions > 0:
         bottle_plan.append({
             "potion_type": [0, 100, 0, 0],
@@ -95,14 +97,14 @@ def get_bottle_plan():
     # plan bottling for red potions
     if mixable_red_potions > 0:
         bottle_plan.append({
-            "potion_type": [0, 0, 100, 0],
+            "potion_type": [100, 0, 0, 0],
             "quantity": mixable_red_potions,
         })
 
     # plan bottling for blue potions
     if mixable_blue_potions > 0:
         bottle_plan.append({
-            "potion_type": [0, 0, 0, 100],
+            "potion_type": [0, 0, 100, 0],
             "quantity": mixable_blue_potions,
         })
 
