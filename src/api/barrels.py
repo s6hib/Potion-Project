@@ -33,11 +33,11 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
         total_cost += cost
 
         # determine potion type based on SKU
-        if b.sku == "SMALL_GREEN_BARREL":
+        if b.sku == "MINI_GREEN_BARREL":
             total_green_ml += ml
-        elif b.sku == "SMALL_RED_BARREL":
+        elif b.sku == "MINI_RED_BARREL":
             total_red_ml += ml
-        elif b.sku == "SMALL_BLUE_BARREL":
+        elif b.sku == "MINI_BLUE_BARREL":
             total_blue_ml += ml
         else:
             # handle unknown SKU if necessary
@@ -66,10 +66,10 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     """plan barrel purchases"""
     print(wholesale_catalog)
-    # find barrels in the catalog
-    green_barrel = next((b for b in wholesale_catalog if b.sku == "SMALL_GREEN_BARREL"), None)
-    red_barrel = next((b for b in wholesale_catalog if b.sku == "SMALL_RED_BARREL"), None)
-    blue_barrel = next((b for b in wholesale_catalog if b.sku == "SMALL_BLUE_BARREL"), None)
+    # find MINI barrels in the catalog
+    blue_barrel = next((b for b in wholesale_catalog if b.sku == "MINI_BLUE_BARREL"), None)
+    red_barrel = next((b for b in wholesale_catalog if b.sku == "MINI_RED_BARREL"), None)
+    green_barrel = next((b for b in wholesale_catalog if b.sku == "MINI_GREEN_BARREL"), None)
 
     # retrieve current inventory data
     with db.engine.begin() as conn:
@@ -83,19 +83,19 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     purchase_plan = []
     available_gold = inv_data.gold
 
-    # plan to buy green barrel if needed
-    if green_barrel and inv_data.num_green_potions < 10 and available_gold >= green_barrel.price:
-        purchase_plan.append({"sku": "SMALL_GREEN_BARREL", "quantity": 1})
-        available_gold -= green_barrel.price
+    # plan to buy blue barrel if needed
+    if blue_barrel and inv_data.num_blue_potions < 10 and available_gold >= blue_barrel.price:
+        purchase_plan.append({"sku": "MINI_BLUE_BARREL", "quantity": 1})
+        available_gold -= blue_barrel.price
 
     # plan to buy red barrel if needed
     if red_barrel and inv_data.num_red_potions < 10 and available_gold >= red_barrel.price:
-        purchase_plan.append({"sku": "SMALL_RED_BARREL", "quantity": 1})
+        purchase_plan.append({"sku": "MINI_RED_BARREL", "quantity": 1})
         available_gold -= red_barrel.price
 
-    # plan to buy blue barrel if needed
-    if blue_barrel and inv_data.num_blue_potions < 10 and available_gold >= blue_barrel.price:
-        purchase_plan.append({"sku": "SMALL_BLUE_BARREL", "quantity": 1})
-        available_gold -= blue_barrel.price
+    # plan to buy green barrel if needed
+    if green_barrel and inv_data.num_green_potions < 10 and available_gold >= green_barrel.price:
+        purchase_plan.append({"sku": "MINI_GREEN_BARREL", "quantity": 1})
+        available_gold -= green_barrel.price
 
     return purchase_plan
