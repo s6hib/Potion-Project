@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from src.api import auth
-import math
 import sqlalchemy
 from src import database as db
 
@@ -13,21 +12,28 @@ router = APIRouter(
 
 @router.get("/audit")
 def get_inventory():
-    """Get current inventory status"""
-    with db.engine.begin() as conn:
-        result = conn.execute(sqlalchemy.text("""
-            SELECT 
-                num_red_potions + num_green_potions + num_blue_potions AS number_of_potions,
-                num_red_ml + num_green_ml + num_blue_ml AS ml_in_barrels,
-                gold
+    with db.engine.begin() as connection:
+        result = connection.execute(sqlalchemy.text("""
+            SELECT num_red_potions, num_green_potions, num_blue_potions,
+                   num_red_ml, num_green_ml, num_blue_ml, gold
             FROM global_inventory
-        """))
-        inventory = result.first()
-    
+        """)).fetchone()
+        
+        red_potions, green_potions, blue_potions, red_ml, green_ml, blue_ml, gold = result
+
+    total_potions = red_potions + green_potions + blue_potions
+    total_ml = red_ml + green_ml + blue_ml
+
     return {
-        "number_of_potions": inventory.number_of_potions,
-        "ml_in_barrels": inventory.ml_in_barrels,
-        "gold": inventory.gold
+        "number_of_potions": total_potions,
+        "ml_in_barrels": total_ml,
+        "gold": gold,
+        "red_potions": red_potions,
+        "green_potions": green_potions,
+        "blue_potions": blue_potions,
+        "red_ml": red_ml,
+        "green_ml": green_ml,
+        "blue_ml": blue_ml
     }
 
 # Gets called once a day
@@ -37,7 +43,6 @@ def get_capacity_plan():
     Start with 1 capacity for 50 potions and 1 capacity for 10000 ml of potion. Each additional 
     capacity unit costs 1000 gold.
     """
-    # This function remains unchanged as it's not directly related to the potion types
     return {
         "potion_capacity": 0,
         "ml_capacity": 0
@@ -54,5 +59,4 @@ def deliver_capacity_plan(capacity_purchase: CapacityPurchase, order_id: int):
     Start with 1 capacity for 50 potions and 1 capacity for 10000 ml of potion. Each additional 
     capacity unit costs 1000 gold.
     """
-    # This function remains unchanged as it's not directly related to the potion types
     return "OK"

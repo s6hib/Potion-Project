@@ -1,53 +1,54 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from src.api import auth
 import sqlalchemy
 from src import database as db
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/catalog",
+    tags=["catalog"],
+    dependencies=[Depends(auth.get_api_key)],
+)
 
-@router.get("/catalog/", tags=["catalog"])
+@router.get("/")
 def get_catalog():
-    """Each unique item combo must have only one price"""
-    with db.engine.begin() as conn:
-        res = conn.execute(
-            sqlalchemy.text(
-                "SELECT num_green_potions, num_red_potions, num_blue_potions FROM global_inventory"
-            )
-        )
-        inventory = res.first()
-        green_stock = inventory.num_green_potions
-        red_stock = inventory.num_red_potions
-        blue_stock = inventory.num_blue_potions
+    """
+    Each unique item combination must have only a single price.
+    """
+    with db.engine.begin() as connection:
+        result = connection.execute(sqlalchemy.text("""
+            SELECT num_red_potions, num_green_potions, num_blue_potions
+            FROM global_inventory
+        """)).fetchone()
+        
+        red_potions, green_potions, blue_potions = result
 
     catalog = []
 
-    # return green potions if available
-    if green_stock > 0:
+    if red_potions > 0:
+        catalog.append({
+            "sku": "RED_POTION_0",
+            "name": "red potion",
+            "quantity": red_potions,
+            "price": 50,
+            "potion_type": [100, 0, 0, 0],
+        })
+
+    if green_potions > 0:
         catalog.append({
             "sku": "GREEN_POTION_0",
             "name": "green potion",
-            "quantity": green_stock,
+            "quantity": green_potions,
             "price": 50,
             "potion_type": [0, 100, 0, 0],
         })
 
-    # return red potions if available
-    if red_stock > 0:
-        catalog.append({
-            "sku": "RED_POTION_0",
-            "name": "red potion",
-            "quantity": red_stock,
-            "price": 50,
-            "potion_type": [0, 0, 100, 0],
-        })
-
-    # return blue potions if available
-    if blue_stock > 0:
+    if blue_potions > 0:
         catalog.append({
             "sku": "BLUE_POTION_0",
             "name": "blue potion",
-            "quantity": blue_stock,
+            "quantity": blue_potions,
             "price": 50,
-            "potion_type": [0, 0, 0, 100],
+            "potion_type": [0, 0, 100, 0],
         })
 
     return catalog
