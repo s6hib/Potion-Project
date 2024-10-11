@@ -3,13 +3,9 @@ from src.api import auth
 import sqlalchemy
 from src import database as db
 
-router = APIRouter(
-    prefix="/catalog",
-    tags=["catalog"],
-    dependencies=[Depends(auth.get_api_key)],
-)
+router = APIRouter()
 
-@router.get("/")
+@router.get("/catalog/", tags=["catalog"])
 def get_catalog():
     """
     Each unique item combination must have only a single price.
