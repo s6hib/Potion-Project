@@ -21,7 +21,7 @@ class Barrel(BaseModel):
 def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
     with db.engine.begin() as connection:
         for barrel in barrels_delivered:
-            color = "red" if barrel.potion_type == [100, 0, 0, 0] else "green" if barrel.potion_type == [0, 100, 0, 0] else "blue"
+            color = "red" if barrel.potion_type == [1, 0, 0, 0] else "green" if barrel.potion_type == [0, 1, 0, 0] else "blue"
             sql = f"""
             UPDATE global_inventory
             SET num_{color}_ml = num_{color}_ml + :ml,
@@ -43,7 +43,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     purchase_plan = []
     for barrel in wholesale_catalog:
-        color = "red" if barrel.potion_type == [100, 0, 0, 0] else "green" if barrel.potion_type == [0, 100, 0, 0] else "blue"
+        color = "red" if barrel.potion_type == [1, 0, 0, 0] else "green" if barrel.potion_type == [0, 1, 0, 0] else "blue"
         current_ml = red_ml if color == "red" else green_ml if color == "green" else blue_ml
         
         if current_ml < 500 and gold >= barrel.price:  # buy if less than 500 ml and we have enough gold
