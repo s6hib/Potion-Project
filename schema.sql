@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS global_inventory (
 -- create the potion_types table
 CREATE TABLE IF NOT EXISTS potion_types (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    sku VARCHAR(20) NOT NULL UNIQUE,
+    name VARCHAR NOT NULL,
+    sku VARCHAR NOT NULL UNIQUE,
     red INTEGER NOT NULL,
     green INTEGER NOT NULL,
     blue INTEGER NOT NULL,
@@ -27,8 +27,8 @@ ADD CONSTRAINT check_non_negative_quantity CHECK (quantity >= 0);
 -- create the carts table
 CREATE TABLE IF NOT EXISTS carts (
     id SERIAL PRIMARY KEY,
-    customer_name VARCHAR(255) NOT NULL,
-    character_class VARCHAR(255) NOT NULL,
+    customer_name VARCHAR NOT NULL,
+    character_class VARCHAR NOT NULL,
     level INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

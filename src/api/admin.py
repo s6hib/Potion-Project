@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends
 from src.api import auth
 import sqlalchemy
 from src import database as db
-from src.api.carts import carts  # import the in-memory cart storage
 
 router = APIRouter(
     prefix="/admin",
@@ -14,21 +13,23 @@ router = APIRouter(
 def reset():
     """
     Reset the game state. Gold goes to 100, all potions are removed from
-    inventory, and all barrels are removed from inventory. Carts are all reset.
+    inventory, and all carts are cleared.
     """
     with db.engine.begin() as connection:
+        # reset global_inventory
         connection.execute(sqlalchemy.text("""
             UPDATE global_inventory
-            SET num_red_potions = 0,
-                num_green_potions = 0,
-                num_blue_potions = 0,
-                num_red_ml = 0,
-                num_green_ml = 0,
-                num_blue_ml = 0,
-                gold = 100
+            SET gold = 100
         """))
 
-    # clear all carts
-    carts.clear()
+        # reset potion_types
+        connection.execute(sqlalchemy.text("""
+            UPDATE potion_types
+            SET quantity = 0
+        """))
+
+        # clear all carts and cart items
+        connection.execute(sqlalchemy.text("DELETE FROM cart_items"))
+        connection.execute(sqlalchemy.text("DELETE FROM carts"))
 
     return "OK"
