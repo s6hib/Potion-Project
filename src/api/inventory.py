@@ -13,27 +13,34 @@ router = APIRouter(
 @router.get("/audit")
 def get_inventory():
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("""
-            SELECT num_red_potions, num_green_potions, num_blue_potions,
-                   num_red_ml, num_green_ml, num_blue_ml, gold
-            FROM global_inventory
+        gold_result = connection.execute(sqlalchemy.text("""
+            SELECT gold FROM global_inventory
         """)).fetchone()
         
-        red_potions, green_potions, blue_potions, red_ml, green_ml, blue_ml, gold = result
+        potions_result = connection.execute(sqlalchemy.text("""
+            SELECT SUM(quantity) as total_potions,
+                   SUM(CASE WHEN red > 0 THEN quantity ELSE 0 END) as red_potions,
+                   SUM(CASE WHEN green > 0 THEN quantity ELSE 0 END) as green_potions,
+                   SUM(CASE WHEN blue > 0 THEN quantity ELSE 0 END) as blue_potions,
+                   SUM(CASE WHEN dark > 0 THEN quantity ELSE 0 END) as dark_potions
+            FROM potion_types
+        """)).fetchone()
 
-    total_potions = red_potions + green_potions + blue_potions
-    total_ml = red_ml + green_ml + blue_ml
+    gold = gold_result.gold if gold_result else 0
+    total_potions = potions_result.total_potions or 0
+    red_potions = potions_result.red_potions or 0
+    green_potions = potions_result.green_potions or 0
+    blue_potions = potions_result.blue_potions or 0
+    dark_potions = potions_result.dark_potions or 0
 
     return {
         "number_of_potions": total_potions,
-        "ml_in_barrels": total_ml,
+        "ml_in_barrels": 0,  # We're not tracking ml separately anymore
         "gold": gold,
         "red_potions": red_potions,
         "green_potions": green_potions,
         "blue_potions": blue_potions,
-        "red_ml": red_ml,
-        "green_ml": green_ml,
-        "blue_ml": blue_ml
+        "dark_potions": dark_potions
     }
 
 # Gets called once a day

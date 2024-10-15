@@ -21,13 +21,26 @@ class Barrel(BaseModel):
 def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
     with db.engine.begin() as connection:
         for barrel in barrels_delivered:
-            color = "red" if barrel.potion_type == [1, 0, 0, 0] else "green" if barrel.potion_type == [0, 1, 0, 0] else "blue"
-            sql = f"""
-            UPDATE global_inventory
-            SET num_{color}_ml = num_{color}_ml + :ml,
-                gold = gold - :price
+            # update potion_types table
+            sql = """
+            UPDATE potion_types
+            SET quantity = quantity + :ml
+            WHERE red = :red AND green = :green AND blue = :blue AND dark = :dark
             """
-            connection.execute(sqlalchemy.text(sql), {"ml": barrel.ml_per_barrel * barrel.quantity, "price": barrel.price * barrel.quantity})
+            connection.execute(sqlalchemy.text(sql), {
+                "ml": barrel.ml_per_barrel * barrel.quantity,
+                "red": barrel.potion_type[0],
+                "green": barrel.potion_type[1],
+                "blue": barrel.potion_type[2],
+                "dark": barrel.potion_type[3]
+            })
+            
+            # update global_inventory
+            sql = """
+            UPDATE global_inventory
+            SET gold = gold - :price
+            """
+            connection.execute(sqlalchemy.text(sql), {"price": barrel.price * barrel.quantity})
     
     return "OK"
 
@@ -35,22 +48,27 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
 def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     with db.engine.begin() as connection:
         result = connection.execute(sqlalchemy.text("""
-            SELECT gold, num_red_ml, num_green_ml, num_blue_ml
-            FROM global_inventory
+            SELECT gold FROM global_inventory
         """)).fetchone()
         
-        gold, red_ml, green_ml, blue_ml = result
+        gold = result[0]
+
+        potion_types = connection.execute(sqlalchemy.text("""
+            SELECT red, green, blue, dark, quantity
+            FROM potion_types
+        """)).fetchall()
 
     purchase_plan = []
     for barrel in wholesale_catalog:
-        color = "red" if barrel.potion_type == [1, 0, 0, 0] else "green" if barrel.potion_type == [0, 1, 0, 0] else "blue"
-        current_ml = red_ml if color == "red" else green_ml if color == "green" else blue_ml
-        
-        if current_ml < 500 and gold >= barrel.price:  # buy if less than 500 ml and we have enough gold
-            purchase_plan.append({
-                "sku": barrel.sku,
-                "quantity": 1
-            })
-            gold -= barrel.price
-    
+        for potion_type in potion_types:
+            if barrel.potion_type == list(potion_type[:4]):  # compare with red, green, blue, dark
+                current_ml = potion_type[4]  # quantity
+                if current_ml < 500 and gold >= barrel.price:  # buy if less than 500 ml and we have enough gold
+                    purchase_plan.append({
+                        "sku": barrel.sku,
+                        "quantity": 1
+                    })
+                    gold -= barrel.price
+                break
+
     return purchase_plan
