@@ -35,7 +35,7 @@ def search_orders(
         SELECT 
             ci.id as line_item_id,
             pt.name as item_sku,
-            c.customer_name,
+            c.id as cart_id,
             ci.quantity * pt.price as line_item_total,
             c.created_at as timestamp
         FROM cart_items ci
@@ -46,7 +46,7 @@ def search_orders(
         params = {}
         
         if customer_name:
-            query += " AND LOWER(c.customer_name) LIKE LOWER(:customer_name)"
+            query += " AND c.id::text LIKE :customer_name"
             params['customer_name'] = f"%{customer_name}%"
         
         if potion_sku:
@@ -72,7 +72,7 @@ def search_orders(
             {
                 "line_item_id": row.line_item_id,
                 "item_sku": row.item_sku,
-                "customer_name": row.customer_name,
+                "customer_name": str(row.cart_id),  # Using cart_id as customer_name
                 "line_item_total": float(row.line_item_total),
                 "timestamp": row.timestamp.isoformat(),
             }
@@ -91,13 +91,12 @@ def post_visits(visit_id: int, customers: list[Customer]):
     return "OK"
 
 @router.post("/")
-def create_cart(new_cart: Customer):
+def create_cart():
     with db.engine.begin() as connection:
         result = connection.execute(
             sqlalchemy.text(
-                "INSERT INTO carts (customer_name, character_class, level) VALUES (:name, :class, :level) RETURNING id"
-            ),
-            {"name": new_cart.customer_name, "class": new_cart.character_class, "level": new_cart.level}
+                "INSERT INTO carts DEFAULT VALUES RETURNING id"
+            )
         )
         cart_id = result.scalar_one()
     return {"cart_id": cart_id}
