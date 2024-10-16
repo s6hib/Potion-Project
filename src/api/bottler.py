@@ -66,23 +66,44 @@ def get_bottle_plan():
 
     bottle_plan = []
     
+    # Create mutable variables to track remaining liquid
+    remaining_red_ml = inventory.red_ml
+    remaining_green_ml = inventory.green_ml
+    remaining_blue_ml = inventory.blue_ml
+    remaining_dark_ml = inventory.dark_ml
+    
     for potion_type in potion_types:
         max_potions = min(
-            inventory.red_ml // potion_type.red_ml if potion_type.red_ml > 0 else float('inf'),
-            inventory.green_ml // potion_type.green_ml if potion_type.green_ml > 0 else float('inf'),
-            inventory.blue_ml // potion_type.blue_ml if potion_type.blue_ml > 0 else float('inf'),
-            inventory.dark_ml // potion_type.dark_ml if potion_type.dark_ml > 0 else float('inf'),
+            remaining_red_ml // potion_type.red_ml if potion_type.red_ml > 0 else float('inf'),
+            remaining_green_ml // potion_type.green_ml if potion_type.green_ml > 0 else float('inf'),
+            remaining_blue_ml // potion_type.blue_ml if potion_type.blue_ml > 0 else float('inf'),
+            remaining_dark_ml // potion_type.dark_ml if potion_type.dark_ml > 0 else float('inf'),
             5  # max 5 potions per type
         )
 
         if max_potions > 0:
             bottle_plan.append({"potion_type_id": potion_type.id, "quantity": int(max_potions)})
 
-            # Update inventory
-            inventory.red_ml -= potion_type.red_ml * max_potions
-            inventory.green_ml -= potion_type.green_ml * max_potions
-            inventory.blue_ml -= potion_type.blue_ml * max_potions
-            inventory.dark_ml -= potion_type.dark_ml * max_potions
+            # Update remaining liquid
+            remaining_red_ml -= potion_type.red_ml * max_potions
+            remaining_green_ml -= potion_type.green_ml * max_potions
+            remaining_blue_ml -= potion_type.blue_ml * max_potions
+            remaining_dark_ml -= potion_type.dark_ml * max_potions
+
+    # Update the inventory in the database
+    with db.engine.begin() as connection:
+        connection.execute(sqlalchemy.text("""
+            UPDATE inventory
+            SET red_ml = :red_ml,
+                green_ml = :green_ml,
+                blue_ml = :blue_ml,
+                dark_ml = :dark_ml
+        """), {
+            "red_ml": remaining_red_ml,
+            "green_ml": remaining_green_ml,
+            "blue_ml": remaining_blue_ml,
+            "dark_ml": remaining_dark_ml
+        })
 
     return bottle_plan
 
