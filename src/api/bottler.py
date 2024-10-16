@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends
-from enum import Enum
 from pydantic import BaseModel
 from src.api import auth
 import sqlalchemy
@@ -12,49 +11,78 @@ router = APIRouter(
 )
 
 class PotionInventory(BaseModel):
-    potion_type: list[int]
+    potion_type_id: int
     quantity: int
 
 @router.post("/deliver/{order_id}")
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     with db.engine.begin() as connection:
         for potion in potions_delivered:
-            color = "red" if potion.potion_type == [100, 0, 0, 0] else "green" if potion.potion_type == [0, 100, 0, 0] else "blue"
-            sql = f"""
-            UPDATE global_inventory
-            SET num_{color}_potions = num_{color}_potions + :quantity,
-                num_{color}_ml = num_{color}_ml - :ml_used
-            """
-            connection.execute(sqlalchemy.text(sql), {"quantity": potion.quantity, "ml_used": potion.quantity * 100})
+            # Get potion type details
+            potion_type = connection.execute(sqlalchemy.text("""
+                SELECT red_ml, green_ml, blue_ml, dark_ml
+                FROM potion_types
+                WHERE id = :id
+            """), {"id": potion.potion_type_id}).fetchone()
+
+            if potion_type:
+                # Update potion inventory
+                connection.execute(sqlalchemy.text("""
+                    UPDATE potion_types
+                    SET inventory = inventory + :quantity
+                    WHERE id = :id
+                """), {"quantity": potion.quantity, "id": potion.potion_type_id})
+
+                # Update liquid inventory
+                connection.execute(sqlalchemy.text("""
+                    UPDATE inventory
+                    SET red_ml = red_ml - :red_ml,
+                        green_ml = green_ml - :green_ml,
+                        blue_ml = blue_ml - :blue_ml,
+                        dark_ml = dark_ml - :dark_ml
+                """), {
+                    "red_ml": potion_type.red_ml * potion.quantity,
+                    "green_ml": potion_type.green_ml * potion.quantity,
+                    "blue_ml": potion_type.blue_ml * potion.quantity,
+                    "dark_ml": potion_type.dark_ml * potion.quantity
+                })
     
     return "OK"
 
 @router.post("/plan")
 def get_bottle_plan():
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("""
-            SELECT num_red_ml, num_green_ml, num_blue_ml
-            FROM global_inventory
+        # Get available liquid
+        inventory = connection.execute(sqlalchemy.text("""
+            SELECT red_ml, green_ml, blue_ml, dark_ml
+            FROM inventory
         """)).fetchone()
-        
-        red_ml, green_ml, blue_ml = result
+
+        # Get all potion types
+        potion_types = connection.execute(sqlalchemy.text("""
+            SELECT id, red_ml, green_ml, blue_ml, dark_ml
+            FROM potion_types
+        """)).fetchall()
 
     bottle_plan = []
     
-    # create red potions
-    red_potions = min(red_ml // 100, 5)  # max 5 potions per color
-    if red_potions > 0:
-        bottle_plan.append({"potion_type": [100, 0, 0, 0], "quantity": red_potions})
-    
-    # create green potions
-    green_potions = min(green_ml // 100, 5)  # max 5 potions per color
-    if green_potions > 0:
-        bottle_plan.append({"potion_type": [0, 100, 0, 0], "quantity": green_potions})
-    
-    # create blue potions
-    blue_potions = min(blue_ml // 100, 5)  # max 5 potions per color
-    if blue_potions > 0:
-        bottle_plan.append({"potion_type": [0, 0, 100, 0], "quantity": blue_potions})
+    for potion_type in potion_types:
+        max_potions = min(
+            inventory.red_ml // potion_type.red_ml if potion_type.red_ml > 0 else float('inf'),
+            inventory.green_ml // potion_type.green_ml if potion_type.green_ml > 0 else float('inf'),
+            inventory.blue_ml // potion_type.blue_ml if potion_type.blue_ml > 0 else float('inf'),
+            inventory.dark_ml // potion_type.dark_ml if potion_type.dark_ml > 0 else float('inf'),
+            5  # max 5 potions per type
+        )
+
+        if max_potions > 0:
+            bottle_plan.append({"potion_type_id": potion_type.id, "quantity": int(max_potions)})
+
+            # Update inventory
+            inventory.red_ml -= potion_type.red_ml * max_potions
+            inventory.green_ml -= potion_type.green_ml * max_potions
+            inventory.blue_ml -= potion_type.blue_ml * max_potions
+            inventory.dark_ml -= potion_type.dark_ml * max_potions
 
     return bottle_plan
 

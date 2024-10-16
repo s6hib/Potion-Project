@@ -4,6 +4,7 @@ from src.api import auth
 from enum import Enum
 import sqlalchemy
 from src import database as db
+from datetime import datetime
 
 router = APIRouter(
     prefix="/carts",
@@ -29,45 +30,55 @@ def search_orders(
     sort_col: search_sort_options = search_sort_options.timestamp,
     sort_order: search_sort_order = search_sort_order.desc,
 ):
-    """
-    Search for cart line items by customer name and/or potion sku.
-
-    Customer name and potion sku filter to orders that contain the 
-    string (case insensitive). If the filters aren't provided, no
-    filtering occurs on the respective search term.
-
-    Search page is a cursor for pagination. The response to this
-    search endpoint will return previous or next if there is a
-    previous or next page of results available. The token passed
-    in that search response can be passed in the next search request
-    as search page to get that page of results.
-
-    Sort col is which column to sort by and sort order is the direction
-    of the search. They default to searching by timestamp of the order
-    in descending order.
-
-    The response itself contains a previous and next page token (if
-    such pages exist) and the results as an array of line items. Each
-    line item contains the line item id (must be unique), item sku, 
-    customer name, line item total (in gold), and timestamp of the order.
-    Your results must be paginated, the max results you can return at any
-    time is 5 total line items.
-    """
-
+    with db.engine.begin() as connection:
+        query = """
+        SELECT 
+            ci.id as line_item_id,
+            pt.name as item_sku,
+            c.customer_name,
+            ci.quantity * pt.price as line_item_total,
+            c.created_at as timestamp
+        FROM cart_items ci
+        JOIN carts c ON ci.cart_id = c.id
+        JOIN potion_types pt ON ci.potion_type_id = pt.id
+        WHERE 1=1
+        """
+        params = {}
+        
+        if customer_name:
+            query += " AND LOWER(c.customer_name) LIKE LOWER(:customer_name)"
+            params['customer_name'] = f"%{customer_name}%"
+        
+        if potion_sku:
+            query += " AND LOWER(pt.name) LIKE LOWER(:potion_sku)"
+            params['potion_sku'] = f"%{potion_sku}%"
+        
+        query += f" ORDER BY {sort_col} {sort_order}"
+        query += " LIMIT 6"  # 5 + 1 to check if there's a next page
+        
+        if search_page:
+            query += " OFFSET :offset"
+            params['offset'] = int(search_page)
+        
+        results = connection.execute(sqlalchemy.text(query), params).fetchall()
+    
+    has_previous = search_page != ""
+    has_next = len(results) > 5
+    
     return {
-        "previous": "",
-        "next": "",
+        "previous": str(int(search_page) - 5) if has_previous else "",
+        "next": search_page + 5 if has_next else "",
         "results": [
             {
-                "line_item_id": 1,
-                "item_sku": "1 oblivion potion",
-                "customer_name": "Scaramouche",
-                "line_item_total": 50,
-                "timestamp": "2021-01-01T00:00:00Z",
+                "line_item_id": row.line_item_id,
+                "item_sku": row.item_sku,
+                "customer_name": row.customer_name,
+                "line_item_total": float(row.line_item_total),
+                "timestamp": row.timestamp.isoformat(),
             }
+            for row in results[:5]  # Only return the first 5 results
         ],
     }
-
 
 class Customer(BaseModel):
     customer_name: str
@@ -79,13 +90,16 @@ def post_visits(visit_id: int, customers: list[Customer]):
     print(customers)
     return "OK"
 
-# in-memory cart storage
-carts = {}
-
 @router.post("/")
 def create_cart(new_cart: Customer):
-    cart_id = len(carts) + 1
-    carts[cart_id] = {"customer": new_cart, "items": {}}
+    with db.engine.begin() as connection:
+        result = connection.execute(
+            sqlalchemy.text(
+                "INSERT INTO carts (customer_name, character_class, level) VALUES (:name, :class, :level) RETURNING id"
+            ),
+            {"name": new_cart.customer_name, "class": new_cart.character_class, "level": new_cart.level}
+        )
+        cart_id = result.scalar_one()
     return {"cart_id": cart_id}
 
 class CartItem(BaseModel):
@@ -93,30 +107,37 @@ class CartItem(BaseModel):
 
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
-    if cart_id not in carts:
-        raise HTTPException(status_code=404, detail="Cart not found")
-    
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("""
-            SELECT num_red_potions, num_green_potions, num_blue_potions
-            FROM global_inventory
-        """)).fetchone()
+        # Check if cart exists
+        cart = connection.execute(
+            sqlalchemy.text("SELECT id FROM carts WHERE id = :cart_id"),
+            {"cart_id": cart_id}
+        ).fetchone()
+        if not cart:
+            raise HTTPException(status_code=404, detail="Cart not found")
         
-        red_potions, green_potions, blue_potions = result
-
-    inventory = {
-        "RED_POTION_0": red_potions,
-        "GREEN_POTION_0": green_potions,
-        "BLUE_POTION_0": blue_potions
-    }
-
-    if item_sku not in inventory:
-        raise HTTPException(status_code=400, detail="Invalid item SKU")
-
-    if cart_item.quantity > inventory[item_sku]:
-        raise HTTPException(status_code=400, detail="Not enough inventory")
-
-    carts[cart_id]["items"][item_sku] = cart_item.quantity
+        # Get potion type id and inventory
+        potion = connection.execute(
+            sqlalchemy.text("SELECT id, inventory FROM potion_types WHERE name = :sku"),
+            {"sku": item_sku}
+        ).fetchone()
+        if not potion:
+            raise HTTPException(status_code=400, detail="Invalid item SKU")
+        
+        if cart_item.quantity > potion.inventory:
+            raise HTTPException(status_code=400, detail="Not enough inventory")
+        
+        # Update or insert cart item
+        connection.execute(
+            sqlalchemy.text("""
+            INSERT INTO cart_items (cart_id, potion_type_id, quantity)
+            VALUES (:cart_id, :potion_id, :quantity)
+            ON CONFLICT (cart_id, potion_type_id) DO UPDATE
+            SET quantity = :quantity
+            """),
+            {"cart_id": cart_id, "potion_id": potion.id, "quantity": cart_item.quantity}
+        )
+    
     return "OK"
 
 class CartCheckout(BaseModel):
@@ -124,28 +145,60 @@ class CartCheckout(BaseModel):
 
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
-    if cart_id not in carts:
-        raise HTTPException(status_code=404, detail="Cart not found")
-
-    cart = carts[cart_id]
-    total_potions = sum(cart["items"].values())
-    total_gold = total_potions * 50  # assuming all potions cost 50 gold
-
     with db.engine.begin() as connection:
-        for sku, quantity in cart["items"].items():
-            color = "red" if sku == "RED_POTION_0" else "green" if sku == "GREEN_POTION_0" else "blue"
-            sql = f"""
-            UPDATE global_inventory
-            SET num_{color}_potions = num_{color}_potions - :quantity,
-                gold = gold + :gold
-            WHERE num_{color}_potions >= :quantity
-            """
-            result = connection.execute(sqlalchemy.text(sql), 
-                                        {"quantity": quantity, "gold": quantity * 50})
-            if result.rowcount == 0:
-                raise HTTPException(status_code=400, detail=f"Not enough {color} potions in inventory")
-
-    # clear the cart after successful checkout
-    del carts[cart_id]
-
-    return {"total_potions_bought": total_potions, "total_gold_paid": total_gold}
+        # Check if cart exists and get items
+        cart_items = connection.execute(
+            sqlalchemy.text("""
+            SELECT ci.potion_type_id, ci.quantity, pt.price, pt.inventory,
+                   pt.red_ml, pt.green_ml, pt.blue_ml, pt.dark_ml
+            FROM cart_items ci
+            JOIN potion_types pt ON ci.potion_type_id = pt.id
+            WHERE ci.cart_id = :cart_id
+            """),
+            {"cart_id": cart_id}
+        ).fetchall()
+        
+        if not cart_items:
+            raise HTTPException(status_code=404, detail="Cart not found or empty")
+        
+        total_gold = sum(item.quantity * item.price for item in cart_items)
+        
+        # Check inventory and update
+        for item in cart_items:
+            if item.quantity > item.inventory:
+                raise HTTPException(status_code=400, detail=f"Not enough inventory for potion {item.potion_type_id}")
+            
+            connection.execute(
+                sqlalchemy.text("""
+                UPDATE potion_types
+                SET inventory = inventory - :quantity
+                WHERE id = :potion_id
+                """),
+                {"quantity": item.quantity, "potion_id": item.potion_type_id}
+            )
+            
+            connection.execute(
+                sqlalchemy.text("""
+                UPDATE inventory
+                SET gold = gold + :gold,
+                    red_ml = red_ml - :red_ml,
+                    green_ml = green_ml - :green_ml,
+                    blue_ml = blue_ml - :blue_ml,
+                    dark_ml = dark_ml - :dark_ml
+                """),
+                {
+                    "gold": item.quantity * item.price,
+                    "red_ml": item.quantity * item.red_ml,
+                    "green_ml": item.quantity * item.green_ml,
+                    "blue_ml": item.quantity * item.blue_ml,
+                    "dark_ml": item.quantity * item.dark_ml
+                }
+            )
+        
+        # Clear the cart
+        connection.execute(
+            sqlalchemy.text("DELETE FROM cart_items WHERE cart_id = :cart_id"),
+            {"cart_id": cart_id}
+        )
+    
+    return {"total_potions_bought": sum(item.quantity for item in cart_items), "total_gold_paid": total_gold}

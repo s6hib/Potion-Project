@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends
 from src.api import auth
 import sqlalchemy
 from src import database as db
-from src.api.carts import carts  # import the in-memory cart storage
 
 router = APIRouter(
     prefix="/admin",
@@ -17,18 +16,30 @@ def reset():
     inventory, and all barrels are removed from inventory. Carts are all reset.
     """
     with db.engine.begin() as connection:
+        # Reset inventory
         connection.execute(sqlalchemy.text("""
-            UPDATE global_inventory
-            SET num_red_potions = 0,
-                num_green_potions = 0,
-                num_blue_potions = 0,
-                num_red_ml = 0,
-                num_green_ml = 0,
-                num_blue_ml = 0,
+            UPDATE inventory
+            SET red_ml = 0,
+                green_ml = 0,
+                blue_ml = 0,
+                dark_ml = 0,
                 gold = 100
         """))
 
-    # clear all carts
-    carts.clear()
+        # Clear all potion inventories
+        connection.execute(sqlalchemy.text("""
+            UPDATE potion_types
+            SET inventory = 0
+        """))
+
+        # Delete all cart items
+        connection.execute(sqlalchemy.text("""
+            DELETE FROM cart_items
+        """))
+
+        # Delete all carts
+        connection.execute(sqlalchemy.text("""
+            DELETE FROM carts
+        """))
 
     return "OK"

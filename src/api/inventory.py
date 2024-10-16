@@ -13,28 +13,37 @@ router = APIRouter(
 @router.get("/audit")
 def get_inventory():
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("""
-            SELECT num_red_potions, num_green_potions, num_blue_potions,
-                   num_red_ml, num_green_ml, num_blue_ml, gold
-            FROM global_inventory
+        # Get liquid inventory
+        liquid_inventory = connection.execute(sqlalchemy.text("""
+            SELECT red_ml, green_ml, blue_ml, dark_ml, gold
+            FROM inventory
         """)).fetchone()
-        
-        red_potions, green_potions, blue_potions, red_ml, green_ml, blue_ml, gold = result
 
-    total_potions = red_potions + green_potions + blue_potions
-    total_ml = red_ml + green_ml + blue_ml
+        # Get potion inventory
+        potion_inventory = connection.execute(sqlalchemy.text("""
+            SELECT id, name, inventory, red_ml, green_ml, blue_ml, dark_ml
+            FROM potion_types
+        """)).fetchall()
 
-    return {
+    total_potions = sum(potion.inventory for potion in potion_inventory)
+    total_ml = sum(getattr(liquid_inventory, f"{color}_ml") for color in ['red', 'green', 'blue', 'dark'])
+
+    audit_result = {
         "number_of_potions": total_potions,
         "ml_in_barrels": total_ml,
-        "gold": gold,
-        "red_potions": red_potions,
-        "green_potions": green_potions,
-        "blue_potions": blue_potions,
-        "red_ml": red_ml,
-        "green_ml": green_ml,
-        "blue_ml": blue_ml
+        "gold": liquid_inventory.gold,
     }
+
+    # Add liquid inventory
+    for color in ['red', 'green', 'blue', 'dark']:
+        audit_result[f"{color}_ml"] = getattr(liquid_inventory, f"{color}_ml")
+
+    # Add potion inventory
+    for potion in potion_inventory:
+        audit_result[f"{potion.name}_potions"] = potion.inventory
+        audit_result[f"{potion.name}_ml"] = sum(getattr(potion, f"{color}_ml") * potion.inventory for color in ['red', 'green', 'blue', 'dark'])
+
+    return audit_result
 
 # Gets called once a day
 @router.post("/plan")
