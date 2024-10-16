@@ -22,6 +22,9 @@ INSERT INTO potion_types (red_ml, green_ml, blue_ml, dark_ml, name, price) VALUE
 -- Carts Table
 CREATE TABLE carts (
     id SERIAL PRIMARY KEY,
+    customer_name VARCHAR(255) NOT NULL,
+    character_class VARCHAR(255) NOT NULL,
+    level INTEGER NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -30,7 +33,8 @@ CREATE TABLE cart_items (
     id SERIAL PRIMARY KEY,
     cart_id INTEGER REFERENCES carts(id),
     potion_type_id INTEGER REFERENCES potion_types(id),
-    quantity INTEGER NOT NULL
+    quantity INTEGER NOT NULL,
+    UNIQUE(cart_id, potion_type_id)
 );
 
 -- Inventory Table
@@ -48,6 +52,6 @@ INSERT INTO inventory (red_ml, green_ml, blue_ml, dark_ml, gold) VALUES (0, 0, 0
 
 -- Comments explaining each table's purpose
 COMMENT ON TABLE potion_types IS 'Stores information about different potion types, their composition, and inventory';
-COMMENT ON TABLE carts IS 'Represents customer carts';
+COMMENT ON TABLE carts IS 'Represents customer carts with customer information';
 COMMENT ON TABLE cart_items IS 'Stores items added to customer carts';
 COMMENT ON TABLE inventory IS 'Tracks the overall inventory of liquid colors and gold';

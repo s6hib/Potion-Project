@@ -35,7 +35,7 @@ def search_orders(
         SELECT 
             ci.id as line_item_id,
             pt.name as item_sku,
-            c.id as cart_id,
+            c.customer_name,
             ci.quantity * pt.price as line_item_total,
             c.created_at as timestamp
         FROM cart_items ci
@@ -44,27 +44,27 @@ def search_orders(
         WHERE 1=1
         """
         params = {}
-        
+
         if customer_name:
-            query += " AND c.id::text LIKE :customer_name"
+            query += " AND LOWER(c.customer_name) LIKE LOWER(:customer_name)"
             params['customer_name'] = f"%{customer_name}%"
-        
+
         if potion_sku:
             query += " AND LOWER(pt.name) LIKE LOWER(:potion_sku)"
             params['potion_sku'] = f"%{potion_sku}%"
-        
+
         query += f" ORDER BY {sort_col} {sort_order}"
         query += " LIMIT 6"  # 5 + 1 to check if there's a next page
-        
+
         if search_page:
             query += " OFFSET :offset"
             params['offset'] = int(search_page)
-        
+
         results = connection.execute(sqlalchemy.text(query), params).fetchall()
-    
+
     has_previous = search_page != ""
     has_next = len(results) > 5
-    
+
     return {
         "previous": str(int(search_page) - 5) if has_previous else "",
         "next": search_page + 5 if has_next else "",
@@ -72,7 +72,7 @@ def search_orders(
             {
                 "line_item_id": row.line_item_id,
                 "item_sku": row.item_sku,
-                "customer_name": str(row.cart_id),  # Using cart_id as customer_name
+                "customer_name": row.customer_name,
                 "line_item_total": float(row.line_item_total),
                 "timestamp": row.timestamp.isoformat(),
             }
@@ -91,12 +91,13 @@ def post_visits(visit_id: int, customers: list[Customer]):
     return "OK"
 
 @router.post("/")
-def create_cart():
+def create_cart(new_cart: Customer):
     with db.engine.begin() as connection:
         result = connection.execute(
             sqlalchemy.text(
-                "INSERT INTO carts DEFAULT VALUES RETURNING id"
-            )
+                "INSERT INTO carts (customer_name, character_class, level) VALUES (:name, :class, :level) RETURNING id"
+            ),
+            {"name": new_cart.customer_name, "class": new_cart.character_class, "level": new_cart.level}
         )
         cart_id = result.scalar_one()
     return {"cart_id": cart_id}
@@ -114,7 +115,7 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
         ).fetchone()
         if not cart:
             raise HTTPException(status_code=404, detail="Cart not found")
-        
+
         # Get potion type id and inventory
         potion = connection.execute(
             sqlalchemy.text("SELECT id, inventory FROM potion_types WHERE name = :sku"),
@@ -122,10 +123,10 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
         ).fetchone()
         if not potion:
             raise HTTPException(status_code=400, detail="Invalid item SKU")
-        
+
         if cart_item.quantity > potion.inventory:
             raise HTTPException(status_code=400, detail="Not enough inventory")
-        
+
         # Update or insert cart item
         connection.execute(
             sqlalchemy.text("""
@@ -136,7 +137,7 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
             """),
             {"cart_id": cart_id, "potion_id": potion.id, "quantity": cart_item.quantity}
         )
-    
+
     return "OK"
 
 class CartCheckout(BaseModel):
@@ -156,17 +157,17 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             """),
             {"cart_id": cart_id}
         ).fetchall()
-        
+
         if not cart_items:
             raise HTTPException(status_code=404, detail="Cart not found or empty")
-        
+
         total_gold = sum(item.quantity * item.price for item in cart_items)
-        
+
         # Check inventory and update
         for item in cart_items:
             if item.quantity > item.inventory:
                 raise HTTPException(status_code=400, detail=f"Not enough inventory for potion {item.potion_type_id}")
-            
+
             connection.execute(
                 sqlalchemy.text("""
                 UPDATE potion_types
@@ -175,7 +176,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 """),
                 {"quantity": item.quantity, "potion_id": item.potion_type_id}
             )
-            
+
             connection.execute(
                 sqlalchemy.text("""
                 UPDATE inventory
@@ -193,11 +194,11 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     "dark_ml": item.quantity * item.dark_ml
                 }
             )
-        
+
         # Clear the cart
         connection.execute(
             sqlalchemy.text("DELETE FROM cart_items WHERE cart_id = :cart_id"),
             {"cart_id": cart_id}
         )
-    
+
     return {"total_potions_bought": sum(item.quantity for item in cart_items), "total_gold_paid": total_gold}
