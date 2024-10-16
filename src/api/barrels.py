@@ -61,7 +61,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     purchase_plan = []
     for barrel in wholesale_catalog:
         for potion_type in potion_types:
-            if barrel.potion_type == list(potion_type[:4]):  # compare with red, green, blue, dark
+            if sum(barrel.potion_type) == 1 and any(a == b == 1 for a, b in zip(barrel.potion_type, potion_type[:4])):
                 current_ml = potion_type[4]  # quantity
                 if current_ml < 500 and gold >= barrel.price:  # buy if less than 500 ml and we have enough gold
                     purchase_plan.append({
