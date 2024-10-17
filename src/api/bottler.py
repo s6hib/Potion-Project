@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 class PotionInventory(BaseModel):
-    potion_type_id: int
+    potion_type: list[int]
     quantity: int
 
 @router.post("/deliver/{order_id}")
@@ -20,10 +20,15 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
         for potion in potions_delivered:
             # Get potion type details
             potion_type = connection.execute(sqlalchemy.text("""
-                SELECT red_ml, green_ml, blue_ml, dark_ml
+                SELECT id
                 FROM potion_types
-                WHERE id = :id
-            """), {"id": potion.potion_type_id}).fetchone()
+                WHERE red_ml = :red_ml AND green_ml = :green_ml AND blue_ml = :blue_ml AND dark_ml = :dark_ml
+            """), {
+                "red_ml": potion.potion_type[0],
+                "green_ml": potion.potion_type[1],
+                "blue_ml": potion.potion_type[2],
+                "dark_ml": potion.potion_type[3]
+            }).fetchone()
 
             if potion_type:
                 # Update potion inventory
@@ -31,7 +36,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
                     UPDATE potion_types
                     SET inventory = inventory + :quantity
                     WHERE id = :id
-                """), {"quantity": potion.quantity, "id": potion.potion_type_id})
+                """), {"quantity": potion.quantity, "id": potion_type.id})
 
                 # Update liquid inventory
                 connection.execute(sqlalchemy.text("""
@@ -41,10 +46,10 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
                         blue_ml = blue_ml - :blue_ml,
                         dark_ml = dark_ml - :dark_ml
                 """), {
-                    "red_ml": potion_type.red_ml * potion.quantity,
-                    "green_ml": potion_type.green_ml * potion.quantity,
-                    "blue_ml": potion_type.blue_ml * potion.quantity,
-                    "dark_ml": potion_type.dark_ml * potion.quantity
+                    "red_ml": potion.potion_type[0] * potion.quantity,
+                    "green_ml": potion.potion_type[1] * potion.quantity,
+                    "blue_ml": potion.potion_type[2] * potion.quantity,
+                    "dark_ml": potion.potion_type[3] * potion.quantity
                 })
     
     return "OK"
