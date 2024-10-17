@@ -12,12 +12,12 @@ CREATE TABLE potion_types (
 
 -- Insert some initial potion types
 INSERT INTO potion_types (red_ml, green_ml, blue_ml, dark_ml, name, price) VALUES
-(100, 0, 0, 0, 'Pure Red Potion', 10.00),
-(0, 100, 0, 0, 'Pure Green Potion', 10.00),
-(0, 0, 100, 0, 'Pure Blue Potion', 10.00),
-(50, 50, 0, 0, 'Yellow Potion', 15.00),
-(50, 0, 50, 0, 'Purple Potion', 15.00),
-(0, 50, 50, 0, 'Cyan Potion', 15.00);
+(100, 0, 0, 0, 'RED_POTION_0', 50.00),
+(0, 100, 0, 0, 'GREEN_POTION_0', 50.00),
+(0, 0, 100, 0, 'BLUE_POTION_0', 50.00),
+(50, 50, 0, 0, 'YELLOW_POTION_0', 75.00),
+(50, 0, 50, 0, 'PURPLE_POTION_0', 75.00),
+(0, 50, 50, 0, 'CYAN_POTION_0', 75.00);
 
 -- Carts Table
 CREATE TABLE carts (
