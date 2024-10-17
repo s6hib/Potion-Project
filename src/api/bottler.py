@@ -82,15 +82,16 @@ def get_bottle_plan():
         )
 
         if max_potions > 0:
-            bottle_plan.append({"potion_type_id": potion_type.id, "quantity": int(max_potions)})
+            bottle_plan.append({
+                "potion_type": [potion_type.red_ml, potion_type.green_ml, potion_type.blue_ml, potion_type.dark_ml],
+                "quantity": int(max_potions)
+            })
 
             # Update remaining liquid (without modifying the actual inventory)
             remaining_red_ml -= potion_type.red_ml * max_potions
             remaining_green_ml -= potion_type.green_ml * max_potions
             remaining_blue_ml -= potion_type.blue_ml * max_potions
             remaining_dark_ml -= potion_type.dark_ml * max_potions
-
-    # We no longer update the inventory here
 
     return bottle_plan
 
