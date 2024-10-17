@@ -180,18 +180,10 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             connection.execute(
                 sqlalchemy.text("""
                 UPDATE inventory
-                SET gold = gold + :gold,
-                    red_ml = red_ml - :red_ml,
-                    green_ml = green_ml - :green_ml,
-                    blue_ml = blue_ml - :blue_ml,
-                    dark_ml = dark_ml - :dark_ml
+                SET gold = gold + :gold
                 """),
                 {
-                    "gold": item.quantity * item.price,
-                    "red_ml": item.quantity * item.red_ml,
-                    "green_ml": item.quantity * item.green_ml,
-                    "blue_ml": item.quantity * item.blue_ml,
-                    "dark_ml": item.quantity * item.dark_ml
+                    "gold": item.quantity * item.price
                 }
             )
 
