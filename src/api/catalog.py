@@ -32,7 +32,7 @@ def get_catalog():
             "sku": f"POTION_{potion.id}",
             "name": potion.name,
             "quantity": potion.quantity,
-            "price": float(potion.price),
+            "price": int(potion.price),  # Changed from float to int
             "potion_type": [
                 potion.red_ml,
                 potion.green_ml,

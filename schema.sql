@@ -6,18 +6,18 @@ CREATE TABLE potion_types (
     blue_ml INTEGER NOT NULL,
     dark_ml INTEGER NOT NULL,
     name VARCHAR(255) NOT NULL,
-    price DECIMAL(10, 2) NOT NULL,
+    price INTEGER NOT NULL,
     inventory INTEGER NOT NULL DEFAULT 0
 );
 
 -- Insert some initial potion types
 INSERT INTO potion_types (red_ml, green_ml, blue_ml, dark_ml, name, price) VALUES
-(100, 0, 0, 0, 'RED_POTION_0', 50.00),
-(0, 100, 0, 0, 'GREEN_POTION_0', 50.00),
-(0, 0, 100, 0, 'BLUE_POTION_0', 50.00),
-(50, 50, 0, 0, 'YELLOW_POTION_0', 75.00),
-(50, 0, 50, 0, 'PURPLE_POTION_0', 75.00),
-(0, 50, 50, 0, 'CYAN_POTION_0', 75.00);
+(100, 0, 0, 0, 'RED_POTION_0', 50),
+(0, 100, 0, 0, 'GREEN_POTION_0', 50),
+(0, 0, 100, 0, 'BLUE_POTION_0', 50),
+(50, 50, 0, 0, 'YELLOW_POTION_0', 75),
+(50, 0, 50, 0, 'PURPLE_POTION_0', 75),
+(0, 50, 50, 0, 'CYAN_POTION_0', 75);
 
 -- Carts Table
 CREATE TABLE carts (
