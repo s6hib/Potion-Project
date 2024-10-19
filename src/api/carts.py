@@ -116,10 +116,16 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
         if not cart:
             raise HTTPException(status_code=404, detail="Cart not found")
 
+        # Parse the SKU to get the potion ID
+        try:
+            potion_id = int(item_sku.split('_')[1])
+        except (IndexError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid item SKU format")
+
         # Get potion type id and inventory
         potion = connection.execute(
-            sqlalchemy.text("SELECT id, inventory FROM potion_types WHERE name = :sku"),
-            {"sku": item_sku}
+            sqlalchemy.text("SELECT id, inventory FROM potion_types WHERE id = :potion_id"),
+            {"potion_id": potion_id}
         ).fetchone()
         if not potion:
             raise HTTPException(status_code=400, detail="Invalid item SKU")
