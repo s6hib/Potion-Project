@@ -50,8 +50,20 @@ CREATE TABLE inventory (
 -- Insert initial inventory
 INSERT INTO inventory (red_ml, green_ml, blue_ml, dark_ml, gold) VALUES (0, 0, 0, 0, 100);
 
+-- Shop Capacity Table
+CREATE TABLE shop_capacity (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    potion_capacity INTEGER NOT NULL DEFAULT 1,
+    ml_capacity INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT single_row CHECK (id = 1)
+);
+
+-- Insert initial shop capacity
+INSERT INTO shop_capacity (potion_capacity, ml_capacity) VALUES (1, 1);
+
 -- Comments explaining each table's purpose
-COMMENT ON TABLE potion_types IS 'Stores information about different potion types, their composition, and inventory';
-COMMENT ON TABLE carts IS 'Represents customer carts with customer information';
-COMMENT ON TABLE cart_items IS 'Stores items added to customer carts';
-COMMENT ON TABLE inventory IS 'Tracks the overall inventory of liquid colors and gold';
+COMMENT ON TABLE potion_types IS 'Stores information about different potion types, their composition, and inventory.';
+COMMENT ON TABLE carts IS 'Represents customer carts with customer information.';
+COMMENT ON TABLE cart_items IS 'Stores items added to customer carts. Gets cleared out when someone checks out.';
+COMMENT ON TABLE inventory IS 'Tracks the overall inventory of liquid colors and gold.';
+COMMENT ON TABLE shop_capacity IS 'Tracks the current capacity for potions and ml in the shop.';
