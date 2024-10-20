@@ -13,7 +13,7 @@ router = APIRouter(
 def reset():
     """
     Reset the game state. Gold goes to 100, all potions are removed from
-    inventory, and all carts are cleared.
+    inventory, all carts are cleared, and shop capacity is reset to 1.
     """
     with db.engine.begin() as connection:
         # reset inventory
@@ -40,6 +40,13 @@ def reset():
         # delete all carts
         connection.execute(sqlalchemy.text("""
             DELETE FROM carts
+        """))
+
+        # reset shop capacity
+        connection.execute(sqlalchemy.text("""
+            UPDATE shop_capacity
+            SET potion_capacity = 1,
+                ml_capacity = 1
         """))
 
     return "OK"
