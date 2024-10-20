@@ -16,7 +16,7 @@ def reset():
     inventory, and all carts are cleared.
     """
     with db.engine.begin() as connection:
-        # Reset inventory
+        # reset inventory
         connection.execute(sqlalchemy.text("""
             UPDATE inventory
             SET red_ml = 0,
@@ -26,18 +26,18 @@ def reset():
                 gold = 100
         """))
 
-        # Clear all potion inventories
+        # clear all potion inventories
         connection.execute(sqlalchemy.text("""
             UPDATE potion_types
             SET inventory = 0
         """))
 
-        # Delete all cart items
+        # delete all cart items
         connection.execute(sqlalchemy.text("""
             DELETE FROM cart_items
         """))
 
-        # Delete all carts
+        # delete all carts
         connection.execute(sqlalchemy.text("""
             DELETE FROM carts
         """))

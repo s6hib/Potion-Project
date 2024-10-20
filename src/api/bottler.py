@@ -18,7 +18,7 @@ class PotionInventory(BaseModel):
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     with db.engine.begin() as connection:
         for potion in potions_delivered:
-            # Get potion type details
+            # get potion type details
             potion_type = connection.execute(sqlalchemy.text("""
                 SELECT id
                 FROM potion_types
@@ -31,14 +31,14 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
             }).fetchone()
 
             if potion_type:
-                # Update potion inventory
+                # update potion inventory
                 connection.execute(sqlalchemy.text("""
                     UPDATE potion_types
                     SET inventory = inventory + :quantity
                     WHERE id = :id
                 """), {"quantity": potion.quantity, "id": potion_type.id})
 
-                # Update liquid inventory
+                # update liquid inventory
                 connection.execute(sqlalchemy.text("""
                     UPDATE inventory
                     SET red_ml = red_ml - :red_ml,
@@ -57,13 +57,13 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
 @router.post("/plan")
 def get_bottle_plan():
     with db.engine.begin() as connection:
-        # Get available liquid
+        # get available liquid
         inventory = connection.execute(sqlalchemy.text("""
             SELECT red_ml, green_ml, blue_ml, dark_ml
             FROM inventory
         """)).fetchone()
 
-        # Get all potion types
+        # get all potion types
         potion_types = connection.execute(sqlalchemy.text("""
             SELECT id, red_ml, green_ml, blue_ml, dark_ml
             FROM potion_types
@@ -71,7 +71,7 @@ def get_bottle_plan():
 
     bottle_plan = []
     
-    # Create variables to track remaining liquid (without modifying the actual inventory)
+    # create variables to track remaining liquid (without modifying the actual inventory)
     remaining_red_ml = inventory.red_ml
     remaining_green_ml = inventory.green_ml
     remaining_blue_ml = inventory.blue_ml
@@ -83,7 +83,7 @@ def get_bottle_plan():
             remaining_green_ml // potion_type.green_ml if potion_type.green_ml > 0 else float('inf'),
             remaining_blue_ml // potion_type.blue_ml if potion_type.blue_ml > 0 else float('inf'),
             remaining_dark_ml // potion_type.dark_ml if potion_type.dark_ml > 0 else float('inf'),
-            5  # max 5 potions per type
+            5  # Max 5 potions per type
         )
 
         if max_potions > 0:
@@ -92,7 +92,7 @@ def get_bottle_plan():
                 "quantity": int(max_potions)
             })
 
-            # Update remaining liquid (without modifying the actual inventory)
+            # update remaining liquid (without modifying the actual inventory)
             remaining_red_ml -= potion_type.red_ml * max_potions
             remaining_green_ml -= potion_type.green_ml * max_potions
             remaining_blue_ml -= potion_type.blue_ml * max_potions

@@ -22,6 +22,7 @@ class search_sort_order(str, Enum):
     asc = "asc"
     desc = "desc"   
 
+# trying to get search working (10/20ish)
 @router.get("/search/", tags=["search"])
 def search_orders(
     customer_name: str = "",
@@ -76,7 +77,7 @@ def search_orders(
                 "line_item_total": float(row.line_item_total),
                 "timestamp": row.timestamp.isoformat(),
             }
-            for row in results[:5]  # Only return the first 5 results
+            for row in results[:5]  # only return the first 5 results
         ],
     }
 
@@ -105,10 +106,11 @@ def create_cart(new_cart: Customer):
 class CartItem(BaseModel):
     quantity: int
 
+# added unique errors messages (10/20ish)
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     with db.engine.begin() as connection:
-        # Check if cart exists
+        # check if cart exists
         cart = connection.execute(
             sqlalchemy.text("SELECT id FROM carts WHERE id = :cart_id"),
             {"cart_id": cart_id}
@@ -116,13 +118,13 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
         if not cart:
             raise HTTPException(status_code=404, detail="Cart not found")
 
-        # Parse the SKU to get the potion ID
+        # parse the SKU to get the potion ID
         try:
             potion_id = int(item_sku.split('_')[1])
         except (IndexError, ValueError):
             raise HTTPException(status_code=400, detail="Invalid item SKU format")
 
-        # Get potion type id and inventory
+        # get potion type id and inventory
         potion = connection.execute(
             sqlalchemy.text("SELECT id, inventory FROM potion_types WHERE id = :potion_id"),
             {"potion_id": potion_id}
@@ -133,7 +135,7 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
         if cart_item.quantity > potion.inventory:
             raise HTTPException(status_code=400, detail="Not enough inventory")
 
-        # Update or insert cart item
+        # update or insert cart item
         connection.execute(
             sqlalchemy.text("""
             INSERT INTO cart_items (cart_id, potion_type_id, quantity)
@@ -152,7 +154,7 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     with db.engine.begin() as connection:
-        # Check if cart exists and get items
+        # check if cart exists and get items
         cart_items = connection.execute(
             sqlalchemy.text("""
             SELECT ci.potion_type_id, ci.quantity, pt.price, pt.inventory,
@@ -169,7 +171,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
         total_gold = sum(item.quantity * item.price for item in cart_items)
 
-        # Check inventory and update
+        # check inventory and update
         for item in cart_items:
             if item.quantity > item.inventory:
                 raise HTTPException(status_code=400, detail=f"Not enough inventory for potion {item.potion_type_id}")
@@ -193,7 +195,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                 }
             )
 
-        # Clear the cart
+        # clear the cart
         connection.execute(
             sqlalchemy.text("DELETE FROM cart_items WHERE cart_id = :cart_id"),
             {"cart_id": cart_id}

@@ -13,13 +13,13 @@ router = APIRouter(
 @router.get("/audit")
 def get_inventory():
     with db.engine.begin() as connection:
-        # Get liquid inventory
+        # get liquid inventory
         liquid_inventory = connection.execute(sqlalchemy.text("""
             SELECT red_ml, green_ml, blue_ml, dark_ml, gold
             FROM inventory
         """)).fetchone()
 
-        # Get potion inventory
+        # get potion inventory
         potion_inventory = connection.execute(sqlalchemy.text("""
             SELECT id, name, inventory, red_ml, green_ml, blue_ml, dark_ml
             FROM potion_types
@@ -34,11 +34,11 @@ def get_inventory():
         "gold": liquid_inventory.gold,
     }
 
-    # Add liquid inventory
+    # add liquid inventory
     for color in ['red', 'green', 'blue', 'dark']:
         audit_result[f"{color}_ml"] = getattr(liquid_inventory, f"{color}_ml")
 
-    # Add potion inventory
+    # add potion inventory
     for potion in potion_inventory:
         audit_result[f"{potion.name}_potions"] = potion.inventory
         audit_result[f"{potion.name}_ml"] = sum(getattr(potion, f"{color}_ml") * potion.inventory for color in ['red', 'green', 'blue', 'dark'])
@@ -53,7 +53,7 @@ def get_capacity_plan():
     capacity unit costs 1000 gold.
     """
     with db.engine.begin() as connection:
-        # Get current inventory and capacity
+        # get current inventory, capacity, and gold
         result = connection.execute(sqlalchemy.text("""
             SELECT SUM(inventory) as total_potions, 
                    (SELECT potion_capacity FROM shop_capacity) as current_capacity,
@@ -65,15 +65,21 @@ def get_capacity_plan():
         current_capacity = result.current_capacity or 1  # Default to 1 if not set
         gold = result.gold or 0
 
-        # Calculate how many more potion capacities we need
-        needed_capacity = max(0, (total_potions // 50) - current_capacity + 1)
-        
-        # Limit the purchase based on available gold
+        # calculate the threshold (80% of current capacity). added threshold bc we can't add more potions than the capacity
+        threshold = (current_capacity * 50) * 0.8
+
+        # determine if we need more capacity
+        if total_potions >= threshold:
+            needed_capacity = 1  # We need at least one more capacity unit
+        else:
+            needed_capacity = 0
+
+        # limit the purchase based on available gold
         affordable_capacity = min(needed_capacity, gold // 1000)
 
     return {
         "potion_capacity": affordable_capacity,
-        "ml_capacity": 0  # We're not handling ml capacity in this example
+        "ml_capacity": 0  # We're not handling ml capacity YET! Will in future but rn only dealing with potions cuz of errors
     }
 
 class CapacityPurchase(BaseModel):
@@ -88,7 +94,7 @@ def deliver_capacity_plan(capacity_purchase: CapacityPurchase, order_id: int):
     capacity unit costs 1000 gold.
     """
     with db.engine.begin() as connection:
-        # Update the shop capacity
+        # update the shop capacity
         connection.execute(sqlalchemy.text("""
             INSERT INTO shop_capacity (potion_capacity, ml_capacity)
             VALUES (:potion_capacity, :ml_capacity)
@@ -100,7 +106,7 @@ def deliver_capacity_plan(capacity_purchase: CapacityPurchase, order_id: int):
             "ml_capacity": capacity_purchase.ml_capacity
         })
 
-        # Deduct the cost from gold
+        # deduct the cost from gold
         total_cost = (capacity_purchase.potion_capacity + capacity_purchase.ml_capacity) * 1000
         connection.execute(sqlalchemy.text("""
             UPDATE inventory
